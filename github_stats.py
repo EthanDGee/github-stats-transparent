@@ -471,18 +471,22 @@ Languages:
         if self._lines_changed is not None:
             return self._lines_changed
 
+        target_user = self.username.lower()
+
         async def fetch(repo):
             additions, deletions = 0, 0
             r = await self.queries.query_rest(f"/repos/{repo}/stats/contributors")
+            if not isinstance(r, list):
+                return 0, 0
+
             for author_obj in r:
                 if not isinstance(author_obj, dict) or not isinstance(author_obj.get("author", {}), dict):
                     continue
-                if author_obj.get("author", {}).get("login", "") != self.username:
+                if author_obj.get("author", {}).get("login", "").lower() != target_user:
                     continue
                 for week in author_obj.get("weeks", []):
                     additions += week.get("a", 0)
                     deletions += week.get("d", 0)
-            self._lines_changed = (additions, deletions)
             return additions, deletions
 
         results = await asyncio.gather(*[fetch(repo) for repo in await self.all_repos])

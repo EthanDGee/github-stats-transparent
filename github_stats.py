@@ -245,6 +245,7 @@ class Stats(object):
         self.queries = Queries(username, access_token, session)
 
         self._name = None
+        self._login = None
         self._stargazers = None
         self._forks = None
         self._total_contributions = None
@@ -297,11 +298,12 @@ Languages:
                           .get("data", {})
                           .get("viewer", {})
                           .get("name", None))
+            self._login = (raw_results
+                          .get("data", {})
+                          .get("viewer", {})
+                          .get("login", None))
             if self._name is None:
-                self._name = (raw_results
-                              .get("data", {})
-                              .get("viewer", {})
-                              .get("login", "No Name"))
+                self._name = self._login if self._login is not None else "No Name"
 
             contrib_repos = (raw_results
                              .get("data", {})
@@ -371,6 +373,17 @@ Languages:
         await self.get_stats()
         assert(self._name is not None)
         return self._name
+
+    @property
+    async def login(self) -> str:
+        """
+        :return: GitHub user's login (e.g., jstrieb)
+        """
+        if self._login is not None:
+            return self._login
+        await self.get_stats()
+        assert(self._login is not None)
+        return self._login
 
     @property
     async def stargazers(self) -> int:

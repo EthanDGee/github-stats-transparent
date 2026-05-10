@@ -471,26 +471,38 @@ Languages:
         if self._lines_changed is not None:
             return self._lines_changed
 
-        target_user = self.username.lower()
+        # Prefer the login from the viewer query if it was already fetched
+        target_user = (self._login or self.username).lower()
+        print(f"DEBUG: Calculating lines changed for user: {target_user}")
 
         async def fetch(repo):
             additions, deletions = 0, 0
             r = await self.queries.query_rest(f"/repos/{repo}/stats/contributors")
+            
+            if isinstance(r, dict) and r.get("message") == "Not Found":
+                return 0, 0
+                
             if not isinstance(r, list):
+                if isinstance(r, dict) and r.get("message"):
+                    print(f"DEBUG: API Message for {repo}: {r.get('message')}")
                 return 0, 0
 
             for author_obj in r:
                 if not isinstance(author_obj, dict) or not isinstance(author_obj.get("author", {}), dict):
                     continue
-                if author_obj.get("author", {}).get("login", "").lower() != target_user:
-                    continue
-                for week in author_obj.get("weeks", []):
-                    additions += week.get("a", 0)
-                    deletions += week.get("d", 0)
+                author_login = author_obj.get("author", {}).get("login", "").lower()
+                if author_login == target_user:
+                    for week in author_obj.get("weeks", []):
+                        additions += week.get("a", 0)
+                        deletions += week.get("d", 0)
             return additions, deletions
 
-        results = await asyncio.gather(*[fetch(repo) for repo in await self.all_repos])
+        repos = list(await self.all_repos)
+        print(f"DEBUG: Checking {len(repos)} repositories...")
+        
+        results = await asyncio.gather(*[fetch(repo) for repo in repos])
         self._lines_changed = (sum(r[0] for r in results), sum(r[1] for r in results))
+        print(f"DEBUG: Final lines changed: {self._lines_changed}")
         return self._lines_changed
 
     @property
